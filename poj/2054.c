@@ -5,40 +5,31 @@
 typedef struct { int b, n; } CNode;
 CNode gpool[2048];
 int gpc;
-int nei[1024];
-int cc[1024], cs[1024], ccc[1024];
-int count(int r) {
-    int j = nei[r], b;
-    int c = cc[r], ic=1;
-    while(j!=-1) {
-        b = gpool[j].b;
-        c += count(b);
-        j = gpool[j].n;
-        ic += ccc[b];
-    }
-    cs[r]=c;
-    ccc[r]=ic;
-    return c;
-}
-int heap[1024], hpc;
+int nei[1024], tail[1024];
+int cc[1024];
+int nml[1024], nms[1024];
+int gml, gms;
+int heap[1024*2], hpc;
+int heapi[1024];
 void heapify(int s) {
     int ns, ms=s; 
     ns = s*2+1; if (ns>=hpc) return;
     int a, b;
     a = heap[ns]; b= heap[ms];
     long long la, lb;
-    la = cs[a]; la*=ccc[b];
-    lb = cs[b]; lb*=ccc[a];
-    if (la>lb||(la==lb&&cc[a]>cc[b])) ms=ns;
+    la = nms[a]; la*=nml[b];
+    lb = nms[b]; lb*=nml[a];
+    if (la>lb) ms=ns;
     ns = s*2+2;
     if (ns<hpc) {
         a = heap[ns]; b= heap[ms];
-        la = cs[a]; la*=ccc[b];
-        lb = cs[b]; lb*=ccc[a];
-        if (la>lb||(la==lb&&cc[a]>cc[b])) ms=ns;
+        la = nms[a]; la*=nml[b];
+        lb = nms[b]; lb*=nml[a];
+        if (la>lb) ms=ns;
     }
     if (ms==s) return;
     ns=heap[s]; heap[s]=heap[ms]; heap[ms]=ns;
+    heapi[heap[s]]=s; heapi[heap[ms]]=ms;
     heapify(ms);
 }
 void adjust(int s) {
@@ -48,37 +39,66 @@ void adjust(int s) {
     while(s) {
         p = (s-1)/2;
         a = heap[p]; b= heap[s];
-        la = cs[a]; la*=ccc[b];
-        lb = cs[b]; lb*=ccc[a];
-        if (la>lb||(la==lb&&cc[a]>=cc[b])) break;
+        la = nms[a]; la*=nml[b];
+        lb = nms[b]; lb*=nml[a];
+        if (la>=lb) break;
         t=heap[p]; heap[p]=heap[s]; heap[s]=t;
+        heapi[heap[s]]=s; heapi[heap[p]]=p;
         s=p;
     }
 }
+int ps[1024];
+char flag[1024];
 int main() {
-    int n, r, i, t, c, j;
+    int n, r, i, t, c, j, pa, ntail;
     int a, b;
     while(1) {
         scanf("%d %d", &n, &r); if (n==0&&r==0) break;
         r--; gpc=0;
-        for (i=0; i<n; i++) nei[i]=-1;
-        for (i=0; i<n; i++) scanf("%d", &cc[i]);
+        for (i=0; i<n; i++) {
+            scanf("%d", &cc[i]);
+            nei[i]=-1; nml[i]=1; nms[i]=cc[i];
+            flag[i]=0; tail[i]=-1;
+            ps[i]=-1;
+        }
         for (i=0; i<n-1; i++) {
             scanf("%d %d", &a, &b); a--; b--;
-            gpool[gpc].b=b; gpool[gpc].n=nei[a]; nei[a]=gpc++;
+            ps[b]=a;
         }
-        count(r);
-        hpc=0; heap[hpc++] = r;
-        t=0; c=0;
+        t=1; c=cc[r]; hpc=0; flag[r]=1;
+        for (i=0; i<n; i++) {
+            if (i==r) continue;
+            heap[hpc] = i;
+            heapi[i]=hpc++;
+            adjust(hpc-1);
+        }
         while(hpc) {
-           t++; 
-           a = heap[0]; c += cc[a]*t;
-           heap[0]=heap[--hpc];
-           heapify(0);
-           j = nei[a]; while(j!=-1) {
-               b = gpool[j].b;
-               j = gpool[j].n;
-               heap[hpc++] = b; adjust(hpc-1);
+           a = heap[0]; 
+           heap[0]=heap[--hpc]; heapi[heap[0]]=0; heapify(0);
+           pa = ps[a];
+           while (flag[pa]==2) pa = ps[pa];
+           if (flag[pa]==1) {
+               t++; c+=t*cc[a]; flag[a]=1;
+               j = nei[a]; while(j!=-1) {
+                   b = gpool[j].b;
+                   t++;  c+= t*cc[b]; flag[b]=1;
+                   j = gpool[j].n;
+               }
+           } else {
+               ntail = tail[a];
+               gpool[gpc].b = a; gpool[gpc].n=nei[a];
+               if (ntail==-1) ntail = gpc;
+               gpc++;
+               if (tail[pa]==-1) {
+                   nei[pa]=gpc-1; tail[pa]=ntail;
+               } else {
+                   gpool[tail[pa]].n=gpc-1;
+                   tail[pa]=ntail;
+               }
+               nml[pa] += nml[a];
+               nms[pa] += nms[a];
+               adjust(heapi[pa]);
+               flag[a]=2;
            }
         }
         printf("%d\n", c);
